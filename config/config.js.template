@@ -79,7 +79,7 @@ var config = {
 			position: 'bottom_center',
 			config: {
 				sensorPin: 22,
-				delay: 1*60*1000,
+				delay: 30*60*1000,
 				turnOffDisplay: true,
 				showCountdown: true,
 			}
