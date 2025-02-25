@@ -129,8 +129,12 @@ var config = {
             config: {
                 feeds: [
                     {
-                        title: "BBC News",
-                        url: "https://feeds.bbci.co.uk/news/rss.xml",
+                        title: "Guardian UK",
+                        url: "https://www.theguardian.com/uk/rss",
+                    },
+                    {
+                        title: "Guardian Tech",
+                        url: "https://www.theguardian.com/uk/technology/rss",
                     },
                 ],
                 showSourceTitle: true,
