@@ -82,6 +82,7 @@ var config = {
                 token: "${HOME_ASSISTANT_TOKEN}",
                 port: 8123,
                 useTLS: true,
+                ignoreCert: true,
                 title: "Bedroom",
                 sections: [
                     {
