@@ -104,23 +104,10 @@ var config = {
             module: "weather",
             position: "top_right",
             config: {
-                weatherProvider: "openweathermap",
+                weatherProvider: "openmeteo",
                 type: "current",
-                location: "${WEATHER_LOCATION}",
-                locationID: "${WEATHER_LOCATION_ID}", //ID from http://bulk.openweathermap.org/sample/city.list.json.gz; unzip the gz file and find your city
-                apiKey: "${WEATHER_API_KEY}",
-            },
-        },
-        {
-            module: "weather",
-            position: "top_right",
-            header: "Weather Forecast",
-            config: {
-                weatherProvider: "openweathermap",
-                type: "forecast",
-                location: "${WEATHER_LOCATION}",
-                locationID: "${WEATHER_LOCATION_ID}",
-                apiKey: "${WEATHER_API_KEY}",
+                lat: ${WEATHER_LAT},
+                lon: ${WEATHER_LON},
             },
         },
         {
