@@ -1,12 +1,8 @@
 /* global WeatherProvider, WeatherObject, WeatherUtils */
 
-/* MagicMirror²
- * Module: Weather
+/*
  * Provider: weather.gov
  * https://weather-gov.github.io/api/general-faqs
- *
- * Original by Vince Peri
- * MIT Licensed.
  *
  * This class is a provider for weather.gov.
  * Note that this is only for US locations (lat and lon) and does not require an API key
@@ -14,9 +10,12 @@
  */
 
 WeatherProvider.register("weathergov", {
-	// Set the name of the provider.
-	// This isn't strictly necessary, since it will fallback to the provider identifier
-	// But for debugging (and future alerts) it would be nice to have the real name.
+
+	/*
+	 * Set the name of the provider.
+	 * This isn't strictly necessary, since it will fallback to the provider identifier
+	 * But for debugging (and future alerts) it would be nice to have the real name.
+	 */
 	providerName: "Weather.gov",
 
 	// Set the default config properties that is specific to this provider
@@ -39,13 +38,7 @@ WeatherProvider.register("weathergov", {
 	// Called to set the config, this config is the same as the weather module's config.
 	setConfig (config) {
 		this.config = config;
-		this.config.apiBase = "https://api.weather.gov";
 		this.fetchWxGovURLs(this.config);
-	},
-
-	// Called when the weather provider is about to start.
-	start () {
-		Log.info(`Weather provider: ${this.providerName} started.`);
 	},
 
 	// This returns the name of the fetched location or an empty string.
@@ -56,7 +49,7 @@ WeatherProvider.register("weathergov", {
 	// Overwrite the fetchCurrentWeather method.
 	fetchCurrentWeather () {
 		if (!this.configURLs) {
-			Log.info("fetchCurrentWeather: fetch wx waiting on config URLs");
+			Log.info("[weatherprovider.weathergov] fetchCurrentWeather: fetch wx waiting on config URLs");
 			return;
 		}
 		this.fetchData(this.stationObsURL)
@@ -69,7 +62,7 @@ WeatherProvider.register("weathergov", {
 				this.setCurrentWeather(currentWeather);
 			})
 			.catch(function (request) {
-				Log.error("Could not load station obs data ... ", request);
+				Log.error("[weatherprovider.weathergov] Could not load station obs data ... ", request);
 			})
 			.finally(() => this.updateAvailable());
 	},
@@ -77,7 +70,7 @@ WeatherProvider.register("weathergov", {
 	// Overwrite the fetchWeatherForecast method.
 	fetchWeatherForecast () {
 		if (!this.configURLs) {
-			Log.info("fetchWeatherForecast: fetch wx waiting on config URLs");
+			Log.info("[weatherprovider.weathergov] fetchWeatherForecast: fetch wx waiting on config URLs");
 			return;
 		}
 		this.fetchData(this.forecastURL)
@@ -90,7 +83,7 @@ WeatherProvider.register("weathergov", {
 				this.setWeatherForecast(forecast);
 			})
 			.catch(function (request) {
-				Log.error("Could not load forecast hourly data ... ", request);
+				Log.error("[weatherprovider.weathergov] Could not load forecast hourly data ... ", request);
 			})
 			.finally(() => this.updateAvailable());
 	},
@@ -98,21 +91,24 @@ WeatherProvider.register("weathergov", {
 	// Overwrite the fetchWeatherHourly method.
 	fetchWeatherHourly () {
 		if (!this.configURLs) {
-			Log.info("fetchWeatherHourly: fetch wx waiting on config URLs");
+			Log.info("[weatherprovider.weathergov] fetchWeatherHourly: fetch wx waiting on config URLs");
 			return;
 		}
 		this.fetchData(this.forecastHourlyURL)
 			.then((data) => {
 				if (!data) {
-					// Did not receive usable new data.
-					// Maybe this needs a better check?
+
+					/*
+					 * Did not receive usable new data.
+					 * Maybe this needs a better check?
+					 */
 					return;
 				}
 				const hourly = this.generateWeatherObjectsFromHourly(data.properties.periods);
 				this.setWeatherHourly(hourly);
 			})
 			.catch(function (request) {
-				Log.error("Could not load data ... ", request);
+				Log.error("[weatherprovider.weathergov] Could not load data ... ", request);
 			})
 			.finally(() => this.updateAvailable());
 	},
@@ -123,14 +119,14 @@ WeatherProvider.register("weathergov", {
 	 * Get specific URLs
 	 */
 	fetchWxGovURLs (config) {
-		this.fetchData(`${config.apiBase}/points/${config.lat},${config.lon}`)
+		this.fetchData(`${config.apiBase}/${config.lat},${config.lon}`)
 			.then((data) => {
 				if (!data || !data.properties) {
 					// points URL did not respond with usable data.
 					return;
 				}
 				this.fetchedLocationName = `${data.properties.relativeLocation.properties.city}, ${data.properties.relativeLocation.properties.state}`;
-				Log.log(`Forecast location is ${this.fetchedLocationName}`);
+				Log.log(`[weatherprovider.weathergov] Forecast location is ${this.fetchedLocationName}`);
 				this.forecastURL = `${data.properties.forecast}?units=si`;
 				this.forecastHourlyURL = `${data.properties.forecastHourly}?units=si`;
 				this.forecastGridDataURL = data.properties.forecastGridData;
@@ -146,7 +142,7 @@ WeatherProvider.register("weathergov", {
 				this.stationObsURL = `${obsData.features[0].id}/observations/latest`;
 			})
 			.catch((err) => {
-				Log.error(err);
+				Log.error("[weatherprovider.weathergov] fetchWxGovURLs error: ", err);
 			})
 			.finally(() => {
 				// excellent, let's fetch some actual wx data
@@ -217,7 +213,7 @@ WeatherProvider.register("weathergov", {
 		currentWeather.minTemperature = currentWeatherData.minTemperatureLast24Hours.value;
 		currentWeather.maxTemperature = currentWeatherData.maxTemperatureLast24Hours.value;
 		currentWeather.humidity = Math.round(currentWeatherData.relativeHumidity.value);
-		currentWeather.precipitationAmount = currentWeatherData.precipitationLastHour.value;
+		currentWeather.precipitationAmount = currentWeatherData.precipitationLastHour?.value ?? currentWeatherData.precipitationLast3Hours?.value;
 		if (currentWeatherData.heatIndex.value !== null) {
 			currentWeather.feelsLikeTemp = currentWeatherData.heatIndex.value;
 		} else if (currentWeatherData.windChill.value !== null) {
@@ -288,14 +284,18 @@ WeatherProvider.register("weathergov", {
 				weather.weatherType = this.convertWeatherType(forecast.shortForecast, forecast.isDaytime);
 			}
 
-			// the same day as before
-			// add values from forecast to corresponding variables
+			/*
+			 * the same day as before
+			 * add values from forecast to corresponding variables
+			 */
 			minTemp.push(forecast.temperature);
 			maxTemp.push(forecast.temperature);
 		}
 
-		// last day
-		// calculate minimum/maximum temperature
+		/*
+		 * last day
+		 * calculate minimum/maximum temperature
+		 */
 		weather.minTemperature = Math.min.apply(null, minTemp);
 		weather.maxTemperature = Math.max.apply(null, maxTemp);
 
@@ -308,8 +308,11 @@ WeatherProvider.register("weathergov", {
 	 * Convert the icons to a more usable name.
 	 */
 	convertWeatherType (weatherType, isDaytime) {
-		//https://w1.weather.gov/xml/current_obs/weather.php
-		// There are way too many types to create, so lets just look for certain strings
+
+		/*
+		 * https://w1.weather.gov/xml/current_obs/weather.php
+		 *  There are way too many types to create, so lets just look for certain strings
+		 */
 
 		if (weatherType.includes("Cloudy") || weatherType.includes("Partly")) {
 			if (isDaytime) {

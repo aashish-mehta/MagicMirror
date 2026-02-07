@@ -1,4 +1,4 @@
-const events = require("events");
+const events = require("node:events");
 const helpers = require("./helpers/global-setup");
 
 describe("Electron app environment", () => {
@@ -11,15 +11,16 @@ describe("Electron app environment", () => {
 	});
 
 	it("should open browserwindow", async () => {
-		const module = await helpers.getElement("#module_0_helloworld");
-		await expect(module.textContent()).resolves.toContain("Test Display Header");
+		// Wait for module content to be rendered, not just the module wrapper
+		const moduleContent = await helpers.getElement("#module_0_helloworld .module-content");
+		await expect(moduleContent.textContent()).resolves.toContain("Test Display Header");
 		expect(global.electronApp.windows()).toHaveLength(1);
 	});
 });
 
 describe("Development console tests", () => {
 	beforeEach(async () => {
-		await helpers.startApplication("tests/configs/modules/display.js", null, ["js/electron.js", "dev"]);
+		await helpers.startApplication("tests/configs/modules/display.js", null, ["dev"]);
 	});
 
 	afterEach(async () => {

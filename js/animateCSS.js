@@ -1,10 +1,3 @@
-/* MagicMirror²
- * AnimateCSS System from https://animate.style/
- * by @bugsounet
- * for Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
-
 /* enumeration of animations in Array **/
 const AnimateCSSIn = [
 	// Attention seekers
@@ -139,7 +132,7 @@ function addAnimateCSS (element, animation, animationTime) {
 	const node = document.getElementById(element);
 	if (!node) {
 		// don't execute animate: we don't find div
-		Log.warn("addAnimateCSS: node not found for", element);
+		Log.warn("node not found for adding", element);
 		return;
 	}
 	node.style.setProperty("--animate-duration", `${animationTime}s`);
@@ -156,9 +149,10 @@ function removeAnimateCSS (element, animation) {
 	const node = document.getElementById(element);
 	if (!node) {
 		// don't execute animate: we don't find div
-		Log.warn("removeAnimateCSS: node not found for", element);
+		Log.warn("node not found for removing", element);
 		return;
 	}
 	node.classList.remove("animate__animated", animationName);
 	node.style.removeProperty("--animate-duration");
 }
+if (typeof window === "undefined") module.exports = { AnimateCSSIn, AnimateCSSOut };

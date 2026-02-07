@@ -1,4 +1,4 @@
-const path = require("path");
+const path = require("node:path");
 const auth = require("express-basic-auth");
 const express = require("express");
 
@@ -13,10 +13,9 @@ app.use(basicAuth);
 
 // Set available directories
 const directories = ["/tests/configs", "/tests/mocks"];
-const rootPath = path.resolve(`${__dirname}/../../../`);
 
 for (let directory of directories) {
-	app.use(directory, express.static(path.resolve(rootPath + directory)));
+	app.use(directory, express.static(path.resolve(`${global.root_path}/${directory}`)));
 }
 
 let server;

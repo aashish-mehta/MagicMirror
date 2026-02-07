@@ -1,9 +1,4 @@
-/* MagicMirror²
- * Node Helper: Calendar
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
+const zlib = require("node:zlib");
 const NodeHelper = require("node_helper");
 const Log = require("logger");
 const CalendarFetcher = require("./calendarfetcher");
@@ -22,11 +17,11 @@ module.exports = NodeHelper.create({
 		} else if (notification === "FETCH_CALENDAR") {
 			const key = payload.id + payload.url;
 			if (typeof this.fetchers[key] === "undefined") {
-				Log.error("Calendar Error. No fetcher exists with key: ", key);
+				Log.error("No fetcher exists with key: ", key);
 				this.sendSocketNotification("CALENDAR_ERROR", { error_type: "MODULE_ERROR_UNSPECIFIED" });
 				return;
 			}
-			this.fetchers[key].startFetch();
+			this.fetchers[key].fetchCalendar();
 		}
 	},
 
@@ -47,22 +42,27 @@ module.exports = NodeHelper.create({
 		try {
 			new URL(url);
 		} catch (error) {
-			Log.error("Calendar Error. Malformed calendar url: ", url, error);
+			Log.error("Malformed calendar url: ", url, error);
 			this.sendSocketNotification("CALENDAR_ERROR", { error_type: "MODULE_ERROR_MALFORMED_URL" });
 			return;
 		}
 
 		let fetcher;
+		let fetchIntervalCorrected;
 		if (typeof this.fetchers[identifier + url] === "undefined") {
-			Log.log(`Create new calendarfetcher for url: ${url} - Interval: ${fetchInterval}`);
-			fetcher = new CalendarFetcher(url, fetchInterval, excludedEvents, maximumEntries, maximumNumberOfDays, auth, broadcastPastEvents, selfSignedCert);
+			if (fetchInterval < 60000) {
+				Log.warn(`fetchInterval for url ${url} must be >= 60000`);
+				fetchIntervalCorrected = 60000;
+			}
+			Log.log(`Create new calendarfetcher for url: ${url} - Interval: ${fetchIntervalCorrected || fetchInterval}`);
+			fetcher = new CalendarFetcher(url, fetchIntervalCorrected || fetchInterval, excludedEvents, maximumEntries, maximumNumberOfDays, auth, broadcastPastEvents, selfSignedCert);
 
 			fetcher.onReceive((fetcher) => {
 				this.broadcastEvents(fetcher, identifier);
 			});
 
 			fetcher.onError((fetcher, error) => {
-				Log.error("Calendar Error. Could not fetch calendar: ", fetcher.url(), error);
+				Log.error("Calendar Error. Could not fetch calendar: ", fetcher.url, error);
 				let error_type = NodeHelper.checkFetchError(error);
 				this.sendSocketNotification("CALENDAR_ERROR", {
 					id: identifier,
@@ -71,13 +71,18 @@ module.exports = NodeHelper.create({
 			});
 
 			this.fetchers[identifier + url] = fetcher;
+			fetcher.fetchCalendar();
 		} else {
 			Log.log(`Use existing calendarfetcher for url: ${url}`);
 			fetcher = this.fetchers[identifier + url];
-			fetcher.broadcastEvents();
+			// Check if calendar data is stale and needs refresh
+			if (fetcher.shouldRefetch()) {
+				Log.log(`Calendar data is stale, fetching fresh data for url: ${url}`);
+				fetcher.fetchCalendar();
+			} else {
+				fetcher.broadcastEvents();
+			}
 		}
-
-		fetcher.startFetch();
 	},
 
 	/**
@@ -86,10 +91,12 @@ module.exports = NodeHelper.create({
 	 * @param {string} identifier the identifier of the calendar
 	 */
 	broadcastEvents (fetcher, identifier) {
+		const checksum = zlib.crc32(Buffer.from(JSON.stringify(fetcher.events), "utf8"));
 		this.sendSocketNotification("CALENDAR_EVENTS", {
 			id: identifier,
-			url: fetcher.url(),
-			events: fetcher.events()
+			url: fetcher.url,
+			events: fetcher.events,
+			checksum: checksum
 		});
 	}
 });

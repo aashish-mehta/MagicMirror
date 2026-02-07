@@ -1,11 +1,5 @@
 /* global NotificationFx */
 
-/* MagicMirror²
- * Module: alert
- *
- * By Paul-Vincent Roll https://paulvincentroll.com/
- * MIT Licensed.
- */
 Module.register("alert", {
 	alerts: {},
 
@@ -31,10 +25,13 @@ Module.register("alert", {
 			da: "translations/da.json",
 			de: "translations/de.json",
 			en: "translations/en.json",
+			eo: "translations/eo.json",
 			es: "translations/es.json",
 			fr: "translations/fr.json",
 			hu: "translations/hu.json",
 			nl: "translations/nl.json",
+			pt: "translations/pt.json",
+			"pt-br": "translations/pt-br.json",
 			ru: "translations/ru.json",
 			th: "translations/th.json"
 		};
@@ -129,7 +126,7 @@ Module.register("alert", {
 		return new Promise((resolve) => {
 			this.nunjucksEnvironment().render(this.getTemplate(type), data, function (err, res) {
 				if (err) {
-					Log.error("Failed to render alert", err);
+					Log.error("[alert] Failed to render alert", err);
 				}
 
 				resolve(res);

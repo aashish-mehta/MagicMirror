@@ -1,19 +1,71 @@
-/* MagicMirror²
- * Log
- *
- * This logger is very simple, but needs to be extended.
- * This system can eventually be used to push the log messages to an external target.
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
+// This logger is very simple, but needs to be extended.
 (function (root, factory) {
 	if (typeof exports === "object") {
-		if (process.env.JEST_WORKER_ID === undefined) {
+		if (process.env.mmTestMode !== "true") {
+			const { styleText } = require("node:util");
+
 			// add timestamps in front of log messages
 			require("console-stamp")(console, {
-				pattern: "yyyy-mm-dd HH:MM:ss.l",
-				include: ["debug", "log", "info", "warn", "error"]
+				format: ":date(yyyy-mm-dd HH:MM:ss.l) :label(7) :pre() :msg",
+				tokens: {
+					pre: () => {
+						const err = new Error();
+						Error.prepareStackTrace = (_, stack) => stack;
+						const stack = err.stack;
+						Error.prepareStackTrace = undefined;
+						try {
+							for (const line of stack) {
+								const file = line.getFileName();
+								if (file && !file.includes("node:") && !file.includes("js/logger.js") && !file.includes("node_modules")) {
+									const filename = file.replace(/.*\/(.*).js/, "$1");
+									const filepath = file.replace(/.*\/(.*)\/.*.js/, "$1");
+									if (filepath === "js") {
+										return styleText("grey", `[${filename}]`);
+									} else {
+										return styleText("grey", `[${filepath}]`);
+									}
+								}
+							}
+						} catch (err) {
+							return styleText("grey", "[unknown]");
+						}
+					},
+					label: (arg) => {
+						const { method, defaultTokens } = arg;
+						let label = defaultTokens.label(arg);
+						switch (method) {
+							case "error":
+								label = styleText("red", label);
+								break;
+							case "warn":
+								label = styleText("yellow", label);
+								break;
+							case "debug":
+								label = styleText("bgBlue", label);
+								break;
+							case "info":
+								label = styleText("blue", label);
+								break;
+						}
+						return label;
+					},
+					msg: (arg) => {
+						const { method, defaultTokens } = arg;
+						let msg = defaultTokens.msg(arg);
+						switch (method) {
+							case "error":
+								msg = styleText("red", msg);
+								break;
+							case "warn":
+								msg = styleText("yellow", msg);
+								break;
+							case "info":
+								msg = styleText("blue", msg);
+								break;
+						}
+						return msg;
+					}
+				}
 			});
 		}
 		// Node, CommonJS-like
@@ -26,8 +78,8 @@
 	let logLevel;
 	let enableLog;
 	if (typeof exports === "object") {
-		// in nodejs and not running with jest
-		enableLog = process.env.JEST_WORKER_ID === undefined;
+		// in nodejs and not running in test mode
+		enableLog = process.env.mmTestMode !== "true";
 	} else {
 		// in browser and not running with jsdom
 		enableLog = typeof window === "object" && window.name !== "jsdom";
@@ -45,7 +97,7 @@
 			groupEnd: Function.prototype.bind.call(console.groupEnd, console),
 			time: Function.prototype.bind.call(console.time, console),
 			timeEnd: Function.prototype.bind.call(console.timeEnd, console),
-			timeStamp: Function.prototype.bind.call(console.timeStamp, console)
+			timeStamp: console.timeStamp ? Function.prototype.bind.call(console.timeStamp, console) : function () {}
 		};
 
 		logLevel.setLogLevel = function (newLevel) {

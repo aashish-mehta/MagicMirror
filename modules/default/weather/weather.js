@@ -1,11 +1,5 @@
 /* global WeatherProvider, WeatherUtils, formatTime */
 
-/* MagicMirror²
- * Module: Weather
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
 Module.register("weather", {
 	// Default module config.
 	defaults: {
@@ -20,7 +14,8 @@ Module.register("weather", {
 		updateInterval: 10 * 60 * 1000, // every 10 minutes
 		animationSpeed: 1000,
 		showFeelsLike: true,
-		showHumidity: false,
+		showHumidity: "none", // possible options for "current" weather are "none", "wind", "temp", "feelslike" or "below", for "hourly" weather "none" or "true"
+		hideZeroes: false, // hide zeroes (and empty columns) in hourly, currently only for precipitation
 		showIndoorHumidity: false,
 		showIndoorTemperature: false,
 		allowOverrideNotification: false,
@@ -46,6 +41,7 @@ Module.register("weather", {
 		onlyTemp: false,
 		colored: false,
 		absoluteDates: false,
+		forecastDateFormat: "ddd", // format for forecast date display, e.g., "ddd" = Mon, "dddd" = Monday, "D MMM" = 18 Oct
 		hourlyForecastIncrements: 1
 	},
 
@@ -80,11 +76,15 @@ Module.register("weather", {
 		moment.locale(this.config.lang);
 
 		if (this.config.useKmh) {
-			Log.warn("Your are using the deprecated config values 'useKmh'. Please switch to windUnits!");
+			Log.warn("[weather] Deprecation warning: Your are using the deprecated config values 'useKmh'. Please switch to windUnits!");
 			this.windUnits = "kmh";
 		} else if (this.config.useBeaufort) {
-			Log.warn("Your are using the deprecated config values 'useBeaufort'. Please switch to windUnits!");
+			Log.warn("[weather] Deprecation warning: Your are using the deprecated config values 'useBeaufort'. Please switch to windUnits!");
 			this.windUnits = "beaufort";
+		}
+		if (typeof this.config.showHumidity === "boolean") {
+			Log.warn("[weather] Deprecation warning: Please consider updating showHumidity to the new style (config string).");
+			this.config.showHumidity = this.config.showHumidity ? "wind" : "none";
 		}
 
 		// Initialize the weather provider.
@@ -109,7 +109,7 @@ Module.register("weather", {
 				for (let event of payload) {
 					if (event.location || event.geo) {
 						this.firstEvent = event;
-						Log.debug("First upcoming event with location: ", event);
+						Log.debug("[weather] First upcoming event with location: ", event);
 						break;
 					}
 				}
@@ -163,21 +163,29 @@ Module.register("weather", {
 
 	// What to do when the weather provider has new information available?
 	updateAvailable () {
-		Log.log("New weather information available.");
-		this.updateDom(0);
+		Log.log("[weather] New weather information available.");
+		// this value was changed from 0 to 300 to stabilize weather tests:
+		this.updateDom(300);
 		this.scheduleUpdate();
 
 		if (this.weatherProvider.currentWeather()) {
-			this.sendNotification("CURRENTWEATHER_TYPE", { type: this.weatherProvider.currentWeather().weatherType.replace("-", "_") });
+			this.sendNotification("CURRENTWEATHER_TYPE", { type: this.weatherProvider.currentWeather().weatherType?.replace("-", "_") });
 		}
 
 		const notificationPayload = {
-			currentWeather: this.weatherProvider?.currentWeatherObject?.simpleClone() ?? null,
-			forecastArray: this.weatherProvider?.weatherForecastArray?.map((ar) => ar.simpleClone()) ?? [],
-			hourlyArray: this.weatherProvider?.weatherHourlyArray?.map((ar) => ar.simpleClone()) ?? [],
+			currentWeather: this.config.units === "imperial"
+				? WeatherUtils.convertWeatherObjectToImperial(this.weatherProvider?.currentWeatherObject?.simpleClone()) ?? null
+				: this.weatherProvider?.currentWeatherObject?.simpleClone() ?? null,
+			forecastArray: this.config.units === "imperial"
+				? this.weatherProvider?.weatherForecastArray?.map((ar) => WeatherUtils.convertWeatherObjectToImperial(ar.simpleClone())) ?? []
+				: this.weatherProvider?.weatherForecastArray?.map((ar) => ar.simpleClone()) ?? [],
+			hourlyArray: this.config.units === "imperial"
+				? this.weatherProvider?.weatherHourlyArray?.map((ar) => WeatherUtils.convertWeatherObjectToImperial(ar.simpleClone())) ?? []
+				: this.weatherProvider?.weatherHourlyArray?.map((ar) => ar.simpleClone()) ?? [],
 			locationName: this.weatherProvider?.fetchedLocationName,
 			providerName: this.weatherProvider.providerName
 		};
+
 		this.sendNotification("WEATHER_UPDATED", notificationPayload);
 	},
 
@@ -200,7 +208,7 @@ Module.register("weather", {
 					this.weatherProvider.fetchWeatherForecast();
 					break;
 				default:
-					Log.error(`Invalid type ${this.config.type} configured (must be one of 'current', 'hourly', 'daily' or 'forecast')`);
+					Log.error(`[weather] Invalid type ${this.config.type} configured (must be one of 'current', 'hourly', 'daily' or 'forecast')`);
 			}
 		}, nextLoad);
 	},
@@ -235,7 +243,7 @@ Module.register("weather", {
 						}
 					}
 				} else if (type === "precip") {
-					if (value === null || isNaN(value) || value === 0 || value.toFixed(2) === "0.00") {
+					if (value === null || isNaN(value)) {
 						formattedValue = "";
 					} else {
 						formattedValue = WeatherUtils.convertPrecipitationUnit(value, valueUnit, this.config.units);

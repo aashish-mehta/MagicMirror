@@ -1,10 +1,8 @@
-const util = require("util");
-const exec = util.promisify(require("child_process").exec);
-const fs = require("fs");
-const path = require("path");
+const util = require("node:util");
+const exec = util.promisify(require("node:child_process").exec);
+const fs = require("node:fs");
+const path = require("node:path");
 const Log = require("logger");
-
-const BASE_DIR = path.normalize(`${__dirname}/../../../`);
 
 class GitHelper {
 	constructor () {
@@ -35,10 +33,10 @@ class GitHelper {
 	}
 
 	async add (moduleName) {
-		let moduleFolder = BASE_DIR;
+		let moduleFolder = `${global.root_path}`;
 
 		if (moduleName !== "MagicMirror") {
-			moduleFolder = `${moduleFolder}modules/${moduleName}`;
+			moduleFolder = `${moduleFolder}/modules/${moduleName}`;
 		}
 
 		try {
@@ -128,7 +126,7 @@ class GitHelper {
 		const { stderr } = await this.execShell(`cd ${repo.folder} && git fetch -n --dry-run`);
 
 		// example output:
-		// From https://github.com/MichMich/MagicMirror
+		// From https://github.com/MagicMirrorOrg/MagicMirror
 		//    e40ddd4..06389e3  develop    -> origin/develop
 		// here the result is in stderr (this is a git default, don't ask why ...)
 		const matches = stderr.match(this.getRefRegex(gitInfo.current));
@@ -185,7 +183,10 @@ class GitHelper {
 					this.gitResultList.push(gitInfo);
 				}
 			} catch (e) {
-				Log.error(`Failed to retrieve repo info for ${repo.module}: ${e}`);
+				// Only log errors in non-test environments to keep test output clean
+				if (process.env.mmTestMode !== "true") {
+					Log.error(`Failed to retrieve repo info for ${repo.module}: ${e}`);
+				}
 			}
 		}
 

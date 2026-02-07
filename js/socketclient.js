@@ -1,11 +1,5 @@
 /* global io */
 
-/* MagicMirror²
- * TODO add description
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
 const MMSocket = function (moduleName) {
 	if (typeof moduleName !== "string") {
 		throw new Error("Please set the module name for the MMSocket.");
@@ -19,7 +13,9 @@ const MMSocket = function (moduleName) {
 		base = config.basePath;
 	}
 	this.socket = io(`/${this.moduleName}`, {
-		path: `${base}socket.io`
+		path: `${base}socket.io`,
+		pingInterval: 120000, // send pings every 2 mins
+		pingTimeout: 120000 // wait up to 2 mins for a pong
 	});
 
 	let notificationCallback = function () {};

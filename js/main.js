@@ -1,11 +1,5 @@
-/* global Loader, defaults, Translator, addAnimateCSS, removeAnimateCSS, AnimateCSSIn, AnimateCSSOut */
+/* global Loader, defaults, Translator, addAnimateCSS, removeAnimateCSS, AnimateCSSIn, AnimateCSSOut, modulePositions, io */
 
-/* MagicMirror²
- * Main System
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
 const MM = (function () {
 	let modules = [];
 
@@ -35,6 +29,8 @@ const MM = (function () {
 			if (typeof module.data.classes === "string") {
 				dom.className = `module ${dom.className} ${module.data.classes}`;
 			}
+
+			dom.style.order = (typeof module.data.order === "number" && Number.isInteger(module.data.order)) ? module.data.order : 0;
 
 			dom.opacity = 0;
 			wrapper.appendChild(dom);
@@ -94,7 +90,7 @@ const MM = (function () {
 	/**
 	 * Send a notification to all modules.
 	 * @param {string} notification The identifier of the notification.
-	 * @param {*} payload The payload of the notification.
+	 * @param {object} payload The payload of the notification.
 	 * @param {Module} sender The module that sent the notification.
 	 * @param {Module} [sendTo] The (optional) module to send the notification to.
 	 */
@@ -266,13 +262,12 @@ const MM = (function () {
 	 * Hide the module.
 	 * @param {Module} module The module to hide.
 	 * @param {number} speed The speed of the hide animation.
-	 * @param {Function} callback Called when the animation is done.
+	 * @param {Promise} callback Called when the animation is done.
 	 * @param {object} [options] Optional settings for the hide method.
 	 */
 	const hideModule = function (module, speed, callback, options = {}) {
 		// set lockString if set in options.
 		if (options.lockString) {
-			// Log.log("Has lockstring: " + options.lockString);
 			if (module.lockStrings.indexOf(options.lockString) === -1) {
 				module.lockStrings.push(options.lockString);
 			}
@@ -292,9 +287,9 @@ const MM = (function () {
 				Log.debug(`${module.identifier} Force remove animateIn (in hide): ${module.hasAnimateIn}`);
 				module.hasAnimateIn = false;
 			}
-			// haveAnimateName for verify if we are using AninateCSS library
+			// haveAnimateName for verify if we are using AnimateCSS library
 			// we check AnimateCSSOut Array for validate it
-			// and finaly return the animate name or `null` (for default MM² animation)
+			// and finally return the animate name or `null` (for default MM² animation)
 			let haveAnimateName = null;
 			// check if have valid animateOut in module definition (module.data.animateOut)
 			if (module.data.animateOut && AnimateCSSOut.indexOf(module.data.animateOut) !== -1) haveAnimateName = module.data.animateOut;
@@ -351,7 +346,7 @@ const MM = (function () {
 	 * Show the module.
 	 * @param {Module} module The module to show.
 	 * @param {number} speed The speed of the show animation.
-	 * @param {Function} callback Called when the animation is done.
+	 * @param {Promise} callback Called when the animation is done.
 	 * @param {object} [options] Optional settings for the show method.
 	 */
 	const showModule = function (module, speed, callback, options = {}) {
@@ -363,7 +358,7 @@ const MM = (function () {
 			}
 		}
 
-		// Check if there are no more lockstrings set, or the force option is set.
+		// Check if there are no more lockStrings set, or the force option is set.
 		// Otherwise cancel show action.
 		if (module.lockStrings.length !== 0 && options.force !== true) {
 			Log.log(`Will not show ${module.name}. LockStrings active: ${module.lockStrings.join(",")}`);
@@ -386,7 +381,7 @@ const MM = (function () {
 
 		module.hidden = false;
 
-		// If forced show, clean current lockstrings.
+		// If forced show, clean current lockStrings.
 		if (module.lockStrings.length !== 0 && options.force === true) {
 			Log.log(`Force show of module: ${module.name}`);
 			module.lockStrings = [];
@@ -396,9 +391,9 @@ const MM = (function () {
 		if (moduleWrapper !== null) {
 			clearTimeout(module.showHideTimer);
 
-			// haveAnimateName for verify if we are using AninateCSS library
+			// haveAnimateName for verify if we are using AnimateCSS library
 			// we check AnimateCSSIn Array for validate it
-			// and finaly return the animate name or `null` (for default MM² animation)
+			// and finally return the animate name or `null` (for default MM² animation)
 			let haveAnimateName = null;
 			// check if have valid animateOut in module definition (module.data.animateIn)
 			if (module.data.animateIn && AnimateCSSIn.indexOf(module.data.animateIn) !== -1) haveAnimateName = module.data.animateIn;
@@ -456,10 +451,9 @@ const MM = (function () {
 	 * an ugly top margin. By using this function, the top bar will be hidden if the
 	 * update notification is not visible.
 	 */
-	const updateWrapperStates = function () {
-		const positions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
 
-		positions.forEach(function (position) {
+	const updateWrapperStates = function () {
+		modulePositions.forEach(function (position) {
 			const wrapper = selectWrapper(position);
 			const moduleWrappers = wrapper.getElementsByClassName("module");
 
@@ -470,7 +464,8 @@ const MM = (function () {
 				}
 			});
 
-			wrapper.style.display = showWrapper ? "block" : "none";
+			// move container definitions to main CSS
+			wrapper.className = showWrapper ? "container" : "container hidden";
 		});
 	};
 
@@ -556,7 +551,7 @@ const MM = (function () {
 
 		/**
 		 * Walks thru a collection of modules and executes the callback with the module as an argument.
-		 * @param {Function} callback The function to execute with the module as an argument.
+		 * @param {module} callback The function to execute with the module as an argument.
 		 */
 		const enumerate = function (callback) {
 			modules.map(function (module) {
@@ -610,18 +605,30 @@ const MM = (function () {
 
 			createDomObjects();
 
+			// Setup global socket listener for RELOAD event (watch mode)
+			if (typeof io !== "undefined") {
+				const socket = io("/", {
+					path: `${config.basePath || "/"}socket.io`
+				});
+
+				socket.on("RELOAD", () => {
+					Log.warn("Reload notification received from server");
+					window.location.reload(true);
+				});
+			}
+
 			if (config.reloadAfterServerRestart) {
 				setInterval(async () => {
 					// if server startup time has changed (which means server was restarted)
 					// the client reloads the mm page
 					try {
-						const res = await fetch(`${location.protocol}//${location.host}/startup`);
+						const res = await fetch(`${location.protocol}//${location.host}${config.basePath}startup`);
 						const curr = await res.text();
 						if (startUp === "") startUp = curr;
 						if (startUp !== curr) {
 							startUp = "";
 							window.location.reload(true);
-							console.warn("Refreshing Website because server was restarted");
+							Log.warn("Refreshing Website because server was restarted");
 						}
 					} catch (err) {
 						Log.error(`MagicMirror not reachable: ${err}`);
@@ -633,7 +640,7 @@ const MM = (function () {
 		/**
 		 * Send a notification to all modules.
 		 * @param {string} notification The identifier of the notification.
-		 * @param {*} payload The payload of the notification.
+		 * @param {object} payload The payload of the notification.
 		 * @param {Module} sender The module that sent the notification.
 		 */
 		sendNotification (notification, payload, sender) {
@@ -673,7 +680,10 @@ const MM = (function () {
 			}
 
 			// Further implementation is done in the private method.
-			updateDom(module, updateOptions);
+			updateDom(module, updateOptions).then(function () {
+				// Once the update is complete and rendered, send a notification to the module that the DOM has been updated
+				sendNotification("MODULE_DOM_UPDATED", null, null, module);
+			});
 		},
 
 		/**
@@ -689,7 +699,7 @@ const MM = (function () {
 		 * Hide the module.
 		 * @param {Module} module The module to hide.
 		 * @param {number} speed The speed of the hide animation.
-		 * @param {Function} callback Called when the animation is done.
+		 * @param {Promise} callback Called when the animation is done.
 		 * @param {object} [options] Optional settings for the hide method.
 		 */
 		hideModule (module, speed, callback, options) {
@@ -701,13 +711,16 @@ const MM = (function () {
 		 * Show the module.
 		 * @param {Module} module The module to show.
 		 * @param {number} speed The speed of the show animation.
-		 * @param {Function} callback Called when the animation is done.
+		 * @param {Promise} callback Called when the animation is done.
 		 * @param {object} [options] Optional settings for the show method.
 		 */
 		showModule (module, speed, callback, options) {
 			// do not change module.hidden yet, only if we really show it later
 			showModule(module, speed, callback, options);
-		}
+		},
+
+		// Return all available module positions.
+		getAvailableModulePositions: modulePositions
 	};
 }());
 

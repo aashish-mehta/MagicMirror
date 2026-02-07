@@ -1,9 +1,3 @@
-/* MagicMirror²
- * Node Helper Superclass
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
 const express = require("express");
 const Log = require("logger");
 const Class = require("./class");
@@ -33,7 +27,7 @@ const NodeHelper = Class.extend({
 	/**
 	 * This method is called when a socket notification arrives.
 	 * @param {string} notification The identifier of the notification.
-	 * @param {*}  payload The payload of the notification.
+	 * @param {object}  payload The payload of the notification.
 	 */
 	socketNotificationReceived (notification, payload) {
 		Log.log(`${this.name} received a socket notification: ${notification} - Payload: ${payload}`);
@@ -55,7 +49,8 @@ const NodeHelper = Class.extend({
 		this.path = path;
 	},
 
-	/* sendSocketNotification(notification, payload)
+	/*
+	 * sendSocketNotification(notification, payload)
 	 * Send a socket notification to the node helper.
 	 *
 	 * argument notification string - The identifier of the notification.
@@ -65,7 +60,8 @@ const NodeHelper = Class.extend({
 		this.io.of(this.name).emit(notification, payload);
 	},
 
-	/* setExpressApp(app)
+	/*
+	 * setExpressApp(app)
 	 * Sets the express app object for this module.
 	 * This allows you to host files from the created webserver.
 	 *
@@ -77,7 +73,8 @@ const NodeHelper = Class.extend({
 		app.use(`/${this.name}`, express.static(`${this.path}/public`));
 	},
 
-	/* setSocketIO(io)
+	/*
+	 * setSocketIO(io)
 	 * Sets the socket io object for this module.
 	 * Binds message receiver.
 	 *
@@ -89,20 +86,9 @@ const NodeHelper = Class.extend({
 		Log.log(`Connecting socket for: ${this.name}`);
 
 		io.of(this.name).on("connection", (socket) => {
-			// add a catch all event.
-			const onevent = socket.onevent;
-			socket.onevent = function (packet) {
-				const args = packet.data || [];
-				onevent.call(this, packet); // original call
-				packet.data = ["*"].concat(args);
-				onevent.call(this, packet); // additional call to catch-all
-			};
-
 			// register catch all.
-			socket.on("*", (notification, payload) => {
-				if (notification !== "*") {
-					this.socketNotificationReceived(notification, payload);
-				}
+			socket.onAny((notification, payload) => {
+				this.socketNotificationReceived(notification, payload);
 			});
 		});
 	}
@@ -127,8 +113,11 @@ NodeHelper.checkFetchError = function (error) {
 	let error_type = "MODULE_ERROR_UNSPECIFIED";
 	if (error.code === "EAI_AGAIN") {
 		error_type = "MODULE_ERROR_NO_CONNECTION";
-	} else if (error.message === "Unauthorized") {
-		error_type = "MODULE_ERROR_UNAUTHORIZED";
+	} else {
+		const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+		if (message.includes("unauthorized") || message.includes("http 401") || message.includes("http 403")) {
+			error_type = "MODULE_ERROR_UNAUTHORIZED";
+		}
 	}
 	return error_type;
 };

@@ -1,9 +1,3 @@
-/* MagicMirror²
- * Module: UpdateNotification
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
 Module.register("updatenotification", {
 	defaults: {
 		updateInterval: 10 * 60 * 1000, // every 10 minutes
@@ -12,13 +6,14 @@ Module.register("updatenotification", {
 		sendUpdatesNotifications: false,
 		updates: [],
 		updateTimeout: 2 * 60 * 1000, // max update duration
-		updateAutorestart: false // autoRestart MM when update done ?
+		updateAutorestart: false, // autoRestart MM when update done ?
+		useModulesFromConfig: true // if `false` iterate over modules directory
 	},
 
 	suspended: false,
 	moduleList: {},
 	needRestart: false,
-	updates: {},
+	updates: [],
 
 	start () {
 		Log.info(`Starting module: ${this.name}`);
@@ -102,7 +97,7 @@ Module.register("updatenotification", {
 
 			const localRef = status.hash;
 			const remoteRef = status.tracking.replace(/.*\//, "");
-			return `<a href="https://github.com/MichMich/MagicMirror/compare/${localRef}...${remoteRef}" class="xsmall dimmed difflink" target="_blank">${text}</a>`;
+			return `<a href="https://github.com/MagicMirrorOrg/MagicMirror/compare/${localRef}...${remoteRef}" class="xsmall dimmed difflink" target="_blank">${text}</a>`;
 		});
 	},
 

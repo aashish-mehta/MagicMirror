@@ -1,14 +1,7 @@
 /* global WeatherProvider, WeatherObject */
 
-/* MagicMirror²
- * Module: Weather
- * Provider: Yr.no
- *
- * By Magnus Marthinsen
- * MIT Licensed
- *
+/*
  * This class is a provider for Yr.no, a norwegian weather service.
- *
  * Terms of service: https://developer.yr.no/doc/TermsOfService/
  */
 WeatherProvider.register("yr", {
@@ -27,10 +20,14 @@ WeatherProvider.register("yr", {
 	start () {
 		if (typeof Storage === "undefined") {
 			//local storage unavailable
-			Log.error("The Yr weather provider requires local storage.");
+			Log.error("[weatherprovider.yr] The Yr weather provider requires local storage.");
 			throw new Error("Local storage not available");
 		}
-		Log.info(`Weather provider: ${this.providerName} started.`);
+		if (this.config.updateInterval < 600000) {
+			Log.warn("[weatherprovider.yr] The Yr weather provider requires a minimum update interval of 10 minutes (600 000 ms). The configuration has been adjusted to meet this requirement.");
+			this.delegate.config.updateInterval = 600000;
+		}
+		Log.info(`[weatherprovider.yr] ${this.providerName} started.`);
 	},
 
 	fetchCurrentWeather () {
@@ -40,18 +37,18 @@ WeatherProvider.register("yr", {
 				this.updateAvailable();
 			})
 			.catch((error) => {
-				Log.error(error);
-				throw new Error(error);
+				Log.error("[weatherprovider.yr] fetchCurrentWeather error:", error);
+				this.updateAvailable();
 			});
 	},
 
 	async getCurrentWeather () {
 		const [weatherData, stellarData] = await Promise.all([this.getWeatherData(), this.getStellarData()]);
 		if (!stellarData) {
-			Log.warn("No stellar data available.");
+			Log.warn("[weatherprovider.yr] No stellar data available.");
 		}
 		if (!weatherData.properties.timeseries || !weatherData.properties.timeseries[0]) {
-			Log.error("No weather data available.");
+			Log.error("[weatherprovider.yr] No weather data available.");
 			return;
 		}
 		const currentTime = moment();
@@ -75,8 +72,11 @@ WeatherProvider.register("yr", {
 
 	getWeatherData () {
 		return new Promise((resolve, reject) => {
-			// If a user has several Yr-modules, for instance one current and one forecast, the API calls must be synchronized across classes.
-			// This is to avoid multiple similar calls to the API.
+
+			/*
+			 * If a user has several Yr-modules, for instance one current and one forecast, the API calls must be synchronized across classes.
+			 * This is to avoid multiple similar calls to the API.
+			 */
 			let shouldWait = localStorage.getItem("yrIsFetchingWeatherData");
 			if (shouldWait) {
 				const checkForGo = setInterval(function () {
@@ -105,12 +105,12 @@ WeatherProvider.register("yr", {
 		let weatherData = this.getWeatherDataFromCache();
 		if (this.weatherDataIsValid(weatherData)) {
 			localStorage.removeItem("yrIsFetchingWeatherData");
-			Log.debug("Weather data found in cache.");
+			Log.debug("[weatherprovider.yr] Weather data found in cache.");
 			resolve(weatherData);
 		} else {
 			this.getWeatherDataFromYr(weatherData?.downloadedAt)
 				.then((weatherData) => {
-					Log.debug("Got weather data from yr.");
+					Log.debug("[weatherprovider.yr] Got weather data from yr.");
 					let data;
 					if (weatherData) {
 						this.cacheWeatherData(weatherData);
@@ -122,8 +122,13 @@ WeatherProvider.register("yr", {
 					resolve(data);
 				})
 				.catch((err) => {
-					Log.error(err);
-					reject("Unable to get weather data from Yr.");
+					Log.error("[weatherprovider.yr] getWeatherDataFromYr error: ", err);
+					if (weatherData) {
+						Log.warn("[weatherprovider.yr] Using outdated cached weather data.");
+						resolve(weatherData);
+					} else {
+						reject("Unable to get weather data from Yr.");
+					}
 				})
 				.finally(() => {
 					localStorage.removeItem("yrIsFetchingWeatherData");
@@ -166,18 +171,18 @@ WeatherProvider.register("yr", {
 				return data;
 			})
 			.catch((err) => {
-				Log.error("Could not load weather data.", err);
+				Log.error("[weatherprovider.yr] Could not load weather data.", err);
 				throw new Error(err);
 			});
 	},
 
 	getConfigOptions () {
 		if (!this.config.lat) {
-			Log.error("Latitude not provided.");
+			Log.error("[weatherprovider.yr] Latitude not provided.");
 			throw new Error("Latitude not provided.");
 		}
 		if (!this.config.lon) {
-			Log.error("Longitude not provided.");
+			Log.error("[weatherprovider.yr] Longitude not provided.");
 			throw new Error("Longitude not provided.");
 		}
 
@@ -191,12 +196,12 @@ WeatherProvider.register("yr", {
 		let { lat, lon, altitude } = this.getConfigOptions();
 
 		if (lat.includes(".") && lat.split(".")[1].length > 4) {
-			Log.warn("Latitude is too specific for weather data. Do not use more than four decimals. Trimming to maximum length.");
+			Log.warn("[weatherprovider.yr] Latitude is too specific for weather data. Do not use more than four decimals. Trimming to maximum length.");
 			const latParts = lat.split(".");
 			lat = `${latParts[0]}.${latParts[1].substring(0, 4)}`;
 		}
 		if (lon.includes(".") && lon.split(".")[1].length > 4) {
-			Log.warn("Longitude is too specific for weather data. Do not use more than four decimals. Trimming to maximum length.");
+			Log.warn("[weatherprovider.yr] Longitude is too specific for weather data. Do not use more than four decimals. Trimming to maximum length.");
 			const lonParts = lon.split(".");
 			lon = `${lonParts[0]}.${lonParts[1].substring(0, 4)}`;
 		}
@@ -209,8 +214,11 @@ WeatherProvider.register("yr", {
 	},
 
 	getStellarData () {
-		// If a user has several Yr-modules, for instance one current and one forecast, the API calls must be synchronized across classes.
-		// This is to avoid multiple similar calls to the API.
+
+		/*
+		 * If a user has several Yr-modules, for instance one current and one forecast, the API calls must be synchronized across classes.
+		 * This is to avoid multiple similar calls to the API.
+		 */
 		return new Promise((resolve, reject) => {
 			let shouldWait = localStorage.getItem("yrIsFetchingStellarData");
 			if (shouldWait) {
@@ -241,11 +249,11 @@ WeatherProvider.register("yr", {
 		const today = moment().format("YYYY-MM-DD");
 		const tomorrow = moment().add(1, "days").format("YYYY-MM-DD");
 		if (stellarData && stellarData.today && stellarData.today.date === today && stellarData.tomorrow && stellarData.tomorrow.date === tomorrow) {
-			Log.debug("Stellar data found in cache.");
+			Log.debug("[weatherprovider.yr] Stellar data found in cache.");
 			localStorage.removeItem("yrIsFetchingStellarData");
 			resolve(stellarData);
 		} else if (stellarData && stellarData.tomorrow && stellarData.tomorrow.date === today) {
-			Log.debug("stellar data for today found in cache, but not for tomorrow.");
+			Log.debug("[weatherprovider.yr] Stellar data for today found in cache, but not for tomorrow.");
 			stellarData.today = stellarData.tomorrow;
 			this.getStellarDataFromYr(tomorrow)
 				.then((data) => {
@@ -259,7 +267,7 @@ WeatherProvider.register("yr", {
 					}
 				})
 				.catch((err) => {
-					Log.error(err);
+					Log.error("[weatherprovider.yr] getStellarDataFromYr error: ", err);
 					reject(`Unable to get stellar data from Yr for ${tomorrow}`);
 				})
 				.finally(() => {
@@ -278,12 +286,12 @@ WeatherProvider.register("yr", {
 						this.cacheStellarData(data);
 						resolve(data);
 					} else {
-						Log.error(`Something went wrong when fetching stellar data. Responses: ${stellarData}`);
+						Log.error(`[weatherprovider.yr] Something went wrong when fetching stellar data. Responses: ${stellarData}`);
 						reject(stellarData);
 					}
 				})
 				.catch((err) => {
-					Log.error(err);
+					Log.error("[weatherprovider.yr] getStellarDataFromYr error: ", err);
 					reject("Unable to get stellar data from Yr.");
 				})
 				.finally(() => {
@@ -305,11 +313,11 @@ WeatherProvider.register("yr", {
 		const requestHeaders = [{ name: "Accept", value: "application/json" }];
 		return this.fetchData(this.getStellarDataUrl(date, days), "json", requestHeaders)
 			.then((data) => {
-				Log.debug("Got stellar data from yr.");
+				Log.debug("[weatherprovider.yr] Got stellar data from yr.");
 				return data;
 			})
 			.catch((err) => {
-				Log.error("Could not load weather data.", err);
+				Log.error("[weatherprovider.yr] Could not load weather data.", err);
 				throw new Error(err);
 			});
 	},
@@ -318,12 +326,12 @@ WeatherProvider.register("yr", {
 		let { lat, lon, altitude } = this.getConfigOptions();
 
 		if (lat.includes(".") && lat.split(".")[1].length > 4) {
-			Log.warn("Latitude is too specific for stellar data. Do not use more than four decimals. Trimming to maximum length.");
+			Log.warn("[weatherprovider.yr] Latitude is too specific for stellar data. Do not use more than four decimals. Trimming to maximum length.");
 			const latParts = lat.split(".");
 			lat = `${latParts[0]}.${latParts[1].substring(0, 4)}`;
 		}
 		if (lon.includes(".") && lon.split(".")[1].length > 4) {
-			Log.warn("Longitude is too specific for stellar data. Do not use more than four decimals. Trimming to maximum length.");
+			Log.warn("[weatherprovider.yr] Longitude is too specific for stellar data. Do not use more than four decimals. Trimming to maximum length.");
 			const lonParts = lon.split(".");
 			lon = `${lonParts[0]}.${lonParts[1].substring(0, 4)}`;
 		}
@@ -497,19 +505,19 @@ WeatherProvider.register("yr", {
 				this.updateAvailable();
 			})
 			.catch((error) => {
-				Log.error(error);
-				throw new Error(error);
+				Log.error("[weatherprovider.yr] fetchWeatherHourly error: ", error);
+				this.updateAvailable();
 			});
 	},
 
 	async getWeatherForecast (type) {
 		const [weatherData, stellarData] = await Promise.all([this.getWeatherData(), this.getStellarData()]);
 		if (!weatherData.properties.timeseries || !weatherData.properties.timeseries[0]) {
-			Log.error("No weather data available.");
+			Log.error("[weatherprovider.yr] No weather data available.");
 			return;
 		}
 		if (!stellarData) {
-			Log.warn("No stellar data available.");
+			Log.warn("[weatherprovider.yr] No stellar data available.");
 		}
 		let forecasts;
 		switch (type) {
@@ -531,7 +539,15 @@ WeatherProvider.register("yr", {
 	getHourlyForecastFrom (weatherData) {
 		const series = [];
 
+		const now = moment({
+			year: moment().year(),
+			month: moment().month(),
+			day: moment().date(),
+			hour: moment().hour()
+		});
 		for (const forecast of weatherData.properties.timeseries) {
+			if (now.isAfter(moment(forecast.time))) continue;
+
 			forecast.symbol = forecast.data.next_1_hours?.summary?.symbol_code;
 			forecast.precipitationAmount = forecast.data.next_1_hours?.details?.precipitation_amount;
 			forecast.precipitationProbability = forecast.data.next_1_hours?.details?.probability_of_precipitation;
@@ -600,8 +616,8 @@ WeatherProvider.register("yr", {
 				this.updateAvailable();
 			})
 			.catch((error) => {
-				Log.error(error);
-				throw new Error(error);
+				Log.error("[weatherprovider.yr] fetchWeatherForecast error: ", error);
+				this.updateAvailable();
 			});
 	}
 });

@@ -1,18 +1,15 @@
 /* global WeatherProvider, WeatherObject */
 
-/* MagicMirror²
- * Module: Weather
- * Provider: Weatherbit
- *
- * By Andrew Pometti
- * MIT Licensed
- *
- * This class is a provider for Weatherbit, based on Nicholas Hubbard's class
- * for Dark Sky & Vince Peri's class for Weather.gov.
+/*
+ * This class is a provider for Weatherbit,
+ * see https://www.weatherbit.io/
  */
 WeatherProvider.register("weatherbit", {
-	// Set the name of the provider.
-	// Not strictly required, but helps for debugging.
+
+	/*
+	 * Set the name of the provider.
+	 * Not strictly required, but helps for debugging.
+	 */
 	providerName: "Weatherbit",
 
 	// Set the default config properties that is specific to this provider
@@ -39,7 +36,7 @@ WeatherProvider.register("weatherbit", {
 				this.setCurrentWeather(currentWeather);
 			})
 			.catch(function (request) {
-				Log.error("Could not load data ... ", request);
+				Log.error("[weatherprovider.weatherbit] Could not load data ... ", request);
 			})
 			.finally(() => this.updateAvailable());
 	},
@@ -58,7 +55,7 @@ WeatherProvider.register("weatherbit", {
 				this.fetchedLocationName = `${data.city_name}, ${data.state_code}`;
 			})
 			.catch(function (request) {
-				Log.error("Could not load data ... ", request);
+				Log.error("[weatherprovider.weatherbit] Could not load data ... ", request);
 			})
 			.finally(() => this.updateAvailable());
 	},
@@ -82,7 +79,7 @@ WeatherProvider.register("weatherbit", {
 					this.config.weatherEndpoint = "/current";
 					break;
 				default:
-					Log.error("weatherEndpoint not configured and could not resolve it based on type");
+					Log.error("[weatherprovider.weatherbit] weatherEndpoint not configured and could not resolve it based on type");
 			}
 		}
 	},

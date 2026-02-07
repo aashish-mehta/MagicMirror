@@ -1,9 +1,3 @@
-/* MagicMirror²
- * Module: NewsFeed
- *
- * By Michael Teeuw https://michaelteeuw.nl
- * MIT Licensed.
- */
 Module.register("newsfeed", {
 	// Default module config.
 	defaults: {
@@ -44,7 +38,7 @@ Module.register("newsfeed", {
 
 	getUrlPrefix (item) {
 		if (item.useCorsProxy) {
-			return `${location.protocol}//${location.host}/cors?url=`;
+			return `${location.protocol}//${location.host}${config.basePath}cors?url=`;
 		} else {
 			return "";
 		}
@@ -63,7 +57,7 @@ Module.register("newsfeed", {
 	// Define required translations.
 	getTranslations () {
 		// The translations for the default modules are defined in the core translation files.
-		// Therefor we can just return false. Otherwise we should have returned a dictionary.
+		// Therefore we can just return false. Otherwise we should have returned a dictionary.
 		// If you're trying to build your own module including translations, check out the documentation.
 		return false;
 	},
@@ -118,27 +112,33 @@ Module.register("newsfeed", {
 
 	//Override template data and return whats used for the current template
 	getTemplateData () {
+		if (this.activeItem >= this.newsItems.length) {
+			this.activeItem = 0;
+		}
+		this.activeItemCount = this.newsItems.length;
 		// this.config.showFullArticle is a run-time configuration, triggered by optional notifications
 		if (this.config.showFullArticle) {
+			this.activeItemHash = this.newsItems[this.activeItem]?.hash;
 			return {
 				url: this.getActiveItemURL()
 			};
 		}
 		if (this.error) {
+			this.activeItemHash = undefined;
 			return {
 				error: this.error
 			};
 		}
 		if (this.newsItems.length === 0) {
+			this.activeItemHash = undefined;
 			return {
 				empty: true
 			};
 		}
-		if (this.activeItem >= this.newsItems.length) {
-			this.activeItem = 0;
-		}
 
 		const item = this.newsItems[this.activeItem];
+		this.activeItemHash = item.hash;
+
 		const items = this.newsItems.map(function (item) {
 			item.publishDate = moment(new Date(item.pubdate)).fromNow();
 			return item;
@@ -150,7 +150,7 @@ Module.register("newsfeed", {
 			sourceTitle: item.sourceTitle,
 			publishDate: moment(new Date(item.pubdate)).fromNow(),
 			title: item.title,
-			url: this.getUrlPrefix(item) + item.url,
+			url: this.getActiveItemURL(),
 			description: item.description,
 			items: items
 		};
@@ -178,6 +178,19 @@ Module.register("newsfeed", {
 	},
 
 	/**
+	 * Gets a feed property by name
+	 * @param {object} feed A feed object.
+	 * @param {string} property The name of the property.
+	 * @returns {string} The value of the specified property for the feed.
+	 */
+	getFeedProperty (feed, property) {
+		let res = this.config[property];
+		const f = this.config.feeds.find((feedItem) => feedItem.url === feed);
+		if (f && f[property]) res = f[property];
+		return res;
+	},
+
+	/**
 	 * Generate an ordered list of items for this configured module.
 	 * @param {object} feeds An object with feeds returned by the node helper.
 	 */
@@ -188,7 +201,7 @@ Module.register("newsfeed", {
 			if (this.subscribedToFeed(feed)) {
 				for (let item of feedItems) {
 					item.sourceTitle = this.titleForFeed(feed);
-					if (!(this.config.ignoreOldItems && Date.now() - new Date(item.pubdate) > this.config.ignoreOlderThan)) {
+					if (!(this.getFeedProperty(feed, "ignoreOldItems") && Date.now() - new Date(item.pubdate) > this.getFeedProperty(feed, "ignoreOlderThan"))) {
 						newsItems.push(item);
 					}
 				}
@@ -312,8 +325,27 @@ Module.register("newsfeed", {
 		if (this.timer) clearInterval(this.timer);
 
 		this.timer = setInterval(() => {
-			this.activeItem++;
-			this.updateDom(this.config.animationSpeed);
+
+			/*
+			 * When animations are enabled, don't update the DOM unless we are actually changing what we are displaying.
+			 * (Animating from a headline to itself is unsightly.)
+			 * Cases:
+			 *
+			 * Number of items | Number of items | Display
+			 * at last update  |   right now     | Behaviour
+			 * ----------------------------------------------------
+			 *     0           |      0          | do not update
+			 *     0           |     >0          | update
+			 *     1           |   0 or >1       | update
+			 *     1           |      1          | update only if item details (hash value) changed
+			 *    >1           |    any          | update
+			 *
+			 * (N.B. We set activeItemCount and activeItemHash in getTemplateData().)
+			 */
+			if (this.newsItems.length > 1 || this.newsItems.length !== this.activeItemCount || this.activeItemHash !== this.newsItems[0]?.hash) {
+				this.activeItem++; // this is OK if newsItems.Length==1; getTemplateData will wrap it around
+				this.updateDom(this.config.animationSpeed);
+			}
 
 			// Broadcast NewsFeed if needed
 			if (this.config.broadcastNewsFeeds) {
@@ -343,7 +375,7 @@ Module.register("newsfeed", {
 				this.activeItem = 0;
 			}
 			this.resetDescrOrFullArticleAndTimer();
-			Log.debug(`${this.name} - going from article #${before} to #${this.activeItem} (of ${this.newsItems.length})`);
+			Log.debug(`[newsfeed] going from article #${before} to #${this.activeItem} (of ${this.newsItems.length})`);
 			this.updateDom(100);
 		} else if (notification === "ARTICLE_PREVIOUS") {
 			this.activeItem--;
@@ -351,7 +383,7 @@ Module.register("newsfeed", {
 				this.activeItem = this.newsItems.length - 1;
 			}
 			this.resetDescrOrFullArticleAndTimer();
-			Log.debug(`${this.name} - going from article #${before} to #${this.activeItem} (of ${this.newsItems.length})`);
+			Log.debug(`[newsfeed] going from article #${before} to #${this.activeItem} (of ${this.newsItems.length})`);
 			this.updateDom(100);
 		}
 		// if "more details" is received the first time: show article summary, on second time show full article
@@ -360,8 +392,8 @@ Module.register("newsfeed", {
 			if (this.config.showFullArticle === true) {
 				this.scrollPosition += this.config.scrollLength;
 				window.scrollTo(0, this.scrollPosition);
-				Log.debug(`${this.name} - scrolling down`);
-				Log.debug(`${this.name} - ARTICLE_MORE_DETAILS, scroll position: ${this.config.scrollLength}`);
+				Log.debug("[newsfeed] scrolling down");
+				Log.debug(`[newsfeed] ARTICLE_MORE_DETAILS, scroll position: ${this.config.scrollLength}`);
 			} else {
 				this.showFullArticle();
 			}
@@ -369,12 +401,12 @@ Module.register("newsfeed", {
 			if (this.config.showFullArticle === true) {
 				this.scrollPosition -= this.config.scrollLength;
 				window.scrollTo(0, this.scrollPosition);
-				Log.debug(`${this.name} - scrolling up`);
-				Log.debug(`${this.name} - ARTICLE_SCROLL_UP, scroll position: ${this.config.scrollLength}`);
+				Log.debug("[newsfeed] scrolling up");
+				Log.debug(`[newsfeed] ARTICLE_SCROLL_UP, scroll position: ${this.config.scrollLength}`);
 			}
 		} else if (notification === "ARTICLE_LESS_DETAILS") {
 			this.resetDescrOrFullArticleAndTimer();
-			Log.debug(`${this.name} - showing only article titles again`);
+			Log.debug("[newsfeed] showing only article titles again");
 			this.updateDom(100);
 		} else if (notification === "ARTICLE_TOGGLE_FULL") {
 			if (this.config.showFullArticle) {
@@ -403,7 +435,7 @@ Module.register("newsfeed", {
 		}
 		clearInterval(this.timer);
 		this.timer = null;
-		Log.debug(`${this.name} - showing ${this.isShowingDescription ? "article description" : "full article"}`);
+		Log.debug(`[newsfeed] showing ${this.isShowingDescription ? "article description" : "full article"}`);
 		this.updateDom(100);
 	}
 });

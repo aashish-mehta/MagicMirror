@@ -1,4 +1,4 @@
-const { cors } = require("../../../js/server_functions");
+const { cors, getUserAgent } = require("#server_functions");
 
 describe("server_functions tests", () => {
 	describe("The cors method", () => {
@@ -7,27 +7,32 @@ describe("server_functions tests", () => {
 		let fetchResponseHeadersText;
 		let corsResponse;
 		let request;
-
 		let fetchMock;
 
 		beforeEach(() => {
-			fetchResponseHeadersGet = jest.fn(() => {});
-			fetchResponseHeadersText = jest.fn(() => {});
+			fetchResponseHeadersGet = vi.fn(() => {});
+			fetchResponseHeadersText = vi.fn(() => {});
 			fetchResponse = {
 				headers: {
 					get: fetchResponseHeadersGet
 				},
-				text: fetchResponseHeadersText
+				text: fetchResponseHeadersText,
+				ok: true
 			};
-			// eslint-disable-next-line
-			fetch = jest.fn();
+
+			fetch = vi.fn();
 			fetch.mockImplementation(() => fetchResponse);
 
 			fetchMock = fetch;
 
 			corsResponse = {
-				set: jest.fn(() => {}),
-				send: jest.fn(() => {})
+				set: vi.fn(() => {}),
+				send: vi.fn(() => {}),
+				status: vi.fn(function (code) {
+					this.statusCode = code;
+					return this;
+				}),
+				json: vi.fn(() => {})
 			};
 
 			request = {
@@ -45,7 +50,7 @@ describe("server_functions tests", () => {
 			expect(fetchMock.mock.calls[0][0]).toBe(urlToCall);
 		});
 
-		it("Forewards Content-Type if json", async () => {
+		it("Forwards Content-Type if json", async () => {
 			fetchResponseHeadersGet.mockImplementation(() => "json");
 
 			await cors(request, corsResponse);
@@ -58,7 +63,7 @@ describe("server_functions tests", () => {
 			expect(corsResponse.set.mock.calls[0][1]).toBe("json");
 		});
 
-		it("Forewards Content-Type if xml", async () => {
+		it("Forwards Content-Type if xml", async () => {
 			fetchResponseHeadersGet.mockImplementation(() => "xml");
 
 			await cors(request, corsResponse);
@@ -76,7 +81,7 @@ describe("server_functions tests", () => {
 			fetchResponseHeadersText.mockImplementation(() => responseData);
 
 			let sentData;
-			corsResponse.send = jest.fn((input) => {
+			corsResponse.send = vi.fn((input) => {
 				sentData = input;
 			});
 
@@ -92,15 +97,11 @@ describe("server_functions tests", () => {
 				throw error;
 			});
 
-			let sentData;
-			corsResponse.send = jest.fn((input) => {
-				sentData = input;
-			});
-
 			await cors(request, corsResponse);
 
 			expect(fetchResponseHeadersText.mock.calls).toHaveLength(1);
-			expect(sentData).toBe(error);
+			expect(corsResponse.status).toHaveBeenCalledWith(500);
+			expect(corsResponse.json).toHaveBeenCalledWith({ error: error.message });
 		});
 
 		it("Fetches with user agent by default", async () => {
@@ -141,6 +142,22 @@ describe("server_functions tests", () => {
 			expect(corsResponse.set.mock.calls[1][1]).toBe("value1");
 			expect(corsResponse.set.mock.calls[2][0]).toBe("header2");
 			expect(corsResponse.set.mock.calls[2][1]).toBe("value2");
+		});
+
+		it("Gets User-Agent from configuration", async () => {
+			global.config = {};
+			let userAgent;
+
+			userAgent = getUserAgent();
+			expect(userAgent).toContain("Mozilla/5.0 (Node.js ");
+
+			global.config.userAgent = "Mozilla/5.0 (Foo)";
+			userAgent = getUserAgent();
+			expect(userAgent).toBe("Mozilla/5.0 (Foo)");
+
+			global.config.userAgent = () => "Mozilla/5.0 (Bar)";
+			userAgent = getUserAgent();
+			expect(userAgent).toBe("Mozilla/5.0 (Bar)");
 		});
 	});
 });

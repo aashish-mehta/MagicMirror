@@ -1,14 +1,9 @@
 /* global WeatherProvider, WeatherObject */
 
-/* MagicMirror²
- * Module: Weather
- * Provider: SMHI
- *
- * By BuXXi https://github.com/buxxi
- * MIT Licensed
- *
- * This class is a provider for SMHI (Sweden only). Metric system is the only
- * supported unit.
+/*
+ * This class is a provider for SMHI (Sweden only).
+ * Metric system is the only supported unit,
+ * see https://www.smhi.se/
  */
 WeatherProvider.register("smhi", {
 	providerName: "SMHI",
@@ -33,7 +28,7 @@ WeatherProvider.register("smhi", {
 				this.setFetchedLocation(this.config.location || `(${coordinates.lat},${coordinates.lon})`);
 				this.setCurrentWeather(weatherObject);
 			})
-			.catch((error) => Log.error(`Could not load data: ${error.message}`))
+			.catch((error) => Log.error(`[weatherprovider.smhi] Could not load data: ${error.message}`))
 			.finally(() => this.updateAvailable());
 	},
 
@@ -48,7 +43,7 @@ WeatherProvider.register("smhi", {
 				this.setFetchedLocation(this.config.location || `(${coordinates.lat},${coordinates.lon})`);
 				this.setWeatherForecast(weatherObjects);
 			})
-			.catch((error) => Log.error(`Could not load data: ${error.message}`))
+			.catch((error) => Log.error(`[weatherprovider.smhi] Could not load data: ${error.message}`))
 			.finally(() => this.updateAvailable());
 	},
 
@@ -63,7 +58,7 @@ WeatherProvider.register("smhi", {
 				this.setFetchedLocation(this.config.location || `(${coordinates.lat},${coordinates.lon})`);
 				this.setWeatherHourly(weatherObjects);
 			})
-			.catch((error) => Log.error(`Could not load data: ${error.message}`))
+			.catch((error) => Log.error(`[weatherprovider.smhi] Could not load data: ${error.message}`))
 			.finally(() => this.updateAvailable());
 	},
 
@@ -74,7 +69,7 @@ WeatherProvider.register("smhi", {
 	setConfig (config) {
 		this.config = config;
 		if (!config.precipitationValue || ["pmin", "pmean", "pmedian", "pmax"].indexOf(config.precipitationValue) === -1) {
-			Log.log(`invalid or not set: ${config.precipitationValue}`);
+			Log.log(`[weatherprovider.smhi] invalid or not set: ${config.precipitationValue}`);
 			config.precipitationValue = this.defaults.precipitationValue;
 		}
 	},
@@ -144,9 +139,11 @@ WeatherProvider.register("smhi", {
 		currentWeather.weatherType = this.convertWeatherType(this.paramValue(weatherData, "Wsymb2"), currentWeather.isDayTime());
 		currentWeather.feelsLikeTemp = this.calculateApparentTemperature(weatherData);
 
-		// Determine the precipitation amount and category and update the
-		// weatherObject with it, the valuetype to use can be configured or uses
-		// median as default.
+		/*
+		 * Determine the precipitation amount and category and update the
+		 * weatherObject with it, the value type to use can be configured or uses
+		 * median as default.
+		 */
 		let precipitationValue = this.paramValue(weatherData, this.config.precipitationValue);
 		switch (this.paramValue(weatherData, "pcat")) {
 			// 0 = No precipitation
@@ -176,7 +173,7 @@ WeatherProvider.register("smhi", {
 	 * @param {object[]} allWeatherData Array of weatherdata
 	 * @param {object} coordinates Coordinates of the locations of the weather
 	 * @param {string} groupBy The interval to use for grouping the data (day, hour)
-	 * @returns {WeatherObject[]} Array of weatherobjects
+	 * @returns {WeatherObject[]} Array of weather objects
 	 */
 	convertWeatherDataGroupedBy (allWeatherData, coordinates, groupBy = "day") {
 		let currentWeather;
@@ -257,7 +254,7 @@ WeatherProvider.register("smhi", {
 	 * Helper method to get a property from the returned data set.
 	 * @param {object} currentWeatherData Weatherdata to get from
 	 * @param {string} name The name of the property
-	 * @returns {*} The value of the property in the weatherdata
+	 * @returns {string} The value of the property in the weatherdata
 	 */
 	paramValue (currentWeatherData, name) {
 		return currentWeatherData.parameters.filter((p) => p.name === name).flatMap((p) => p.values)[0];
